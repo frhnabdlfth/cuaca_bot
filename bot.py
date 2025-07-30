@@ -33,7 +33,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Contoh:\n"
         "• /cuaca Jakarta Selatan\n"
         "• /cuaca Bandung, Jawa Barat\n"
-        "• /cuaca New York"
+        "• /cuaca New York\n\n"
 
         "Jika tidak ada lokasi yang diberikan, bot akan meminta Anda untuk memasukkan lokasi.\n"
         "Created by frhnabdlfth\n"
