@@ -130,13 +130,13 @@ async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     prompt = " ".join(context.args)
 
-    # Coba pakai OpenAI dulu
+    # Coba pakai GPT-3.5 dulu
     try:
         if not OPENAI_API_KEY:
             raise ValueError("API Key OpenAI tidak ditemukan.")
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-3.5-turbo",  # Ganti dari gpt-4o ke gpt-3.5-turbo
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
             temperature=0.7
@@ -146,18 +146,16 @@ async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     except Exception as e_openai:
-        # Jika gagal, coba pakai Gemini
+        # Fallback ke Gemini
         try:
             if not GEMINI_API_KEY:
                 raise ValueError("API Key Gemini tidak ditemukan.")
-
             response = gemini_model.generate_content(prompt)
             jawaban = response.text
             await update.message.reply_text(jawaban)
             return
 
         except Exception as e_gemini:
-            # Keduanya gagal
             await update.message.reply_text(
                 "❌ Gagal menjawab pertanyaan.\n"
                 f"Error OpenAI: `{e_openai}`\n"
