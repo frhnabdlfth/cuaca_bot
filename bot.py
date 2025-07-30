@@ -4,6 +4,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from datetime import datetime
 import requests
+import google.generativeai as genai
 from openai import OpenAI
 
 load_dotenv()
@@ -11,6 +12,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 TERJEMAHAN_CUACA = {
@@ -113,18 +115,26 @@ async def cuaca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal mengambil data.\nError: `{e}`", parse_mode="Markdown")
 
-async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not OPENAI_API_KEY:
-        await update.message.reply_text("❌ API Key OpenAI tidak ditemukan. Cek config Railway kamu.")
-        return
+# Konfigurasi Gemini
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel("gemini-pro")
 
+async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Ketik pertanyaan setelah perintah.\nContoh: `/tanya Apa itu awan cumulonimbus?`", parse_mode="Markdown")
+        await update.message.reply_text(
+            "Ketik pertanyaan setelah perintah.\nContoh: `/tanya Apa itu awan cumulonimbus?`",
+            parse_mode="Markdown"
+        )
         return
 
     prompt = " ".join(context.args)
 
+    # Coba pakai OpenAI dulu
     try:
+        if not OPENAI_API_KEY:
+            raise ValueError("API Key OpenAI tidak ditemukan.")
+
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
@@ -133,8 +143,27 @@ async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         jawaban = response.choices[0].message.content
         await update.message.reply_text(jawaban)
-    except Exception as e:
-        await update.message.reply_text(f"❌ Gagal menjawab pertanyaan.\nError: `{e}`", parse_mode="Markdown")
+        return
+
+    except Exception as e_openai:
+        # Jika gagal, coba pakai Gemini
+        try:
+            if not GEMINI_API_KEY:
+                raise ValueError("API Key Gemini tidak ditemukan.")
+
+            response = gemini_model.generate_content(prompt)
+            jawaban = response.text
+            await update.message.reply_text(jawaban)
+            return
+
+        except Exception as e_gemini:
+            # Keduanya gagal
+            await update.message.reply_text(
+                "❌ Gagal menjawab pertanyaan.\n"
+                f"Error OpenAI: `{e_openai}`\n"
+                f"Error Gemini: `{e_gemini}`",
+                parse_mode="Markdown"
+            )
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
