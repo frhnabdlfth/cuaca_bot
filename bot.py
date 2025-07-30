@@ -4,15 +4,15 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from datetime import datetime
 import requests
-import openai
+from openai import OpenAI
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
-openai.api_key = os.getenv('OPENAI_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Kamus terjemahan cuaca
 TERJEMAHAN_CUACA = {
     "Sunny": "Cerah", "Clear": "Cerah", "Partly cloudy": "Sebagian berawan", "Cloudy": "Berawan",
     "Overcast": "Mendung", "Mist": "Berkabut", "Patchy rain possible": "Kemungkinan hujan ringan",
@@ -29,7 +29,6 @@ EMOJI_CUACA = {
     "Hujan petir": "⛈️", "Kabut": "🌫️", "Gerimis": "🌧️", "Salju ringan": "🌨️"
 }
 
-# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Selamat datang! 🌦️\n"
@@ -42,7 +41,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Created by frhnabdlfth"
     )
 
-# /cuaca
 async def cuaca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Ketik lokasi setelah perintah.\nContoh: `/cuaca Yogyakarta`", parse_mode="Markdown")
@@ -115,9 +113,8 @@ async def cuaca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal mengambil data.\nError: `{e}`", parse_mode="Markdown")
 
-# /tanya
 async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not openai.api_key:
+    if not OPENAI_API_KEY:
         await update.message.reply_text("❌ API Key OpenAI tidak ditemukan. Cek config Railway kamu.")
         return
 
@@ -126,19 +123,19 @@ async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     prompt = " ".join(context.args)
+
     try:
-        res = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
             temperature=0.7
         )
-        jawaban = res.choices[0].message.content
+        jawaban = response.choices[0].message.content
         await update.message.reply_text(jawaban)
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal menjawab pertanyaan.\nError: `{e}`", parse_mode="Markdown")
 
-# Start app
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
