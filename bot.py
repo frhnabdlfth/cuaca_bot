@@ -115,53 +115,53 @@ async def cuaca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal mengambil data.\nError: `{e}`", parse_mode="Markdown")
 
-# Konfigurasi Gemini
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel("gemini-pro")
-
 async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text(
-            "Ketik pertanyaan setelah perintah.\nContoh: `/tanya Apa itu awan cumulonimbus?`",
+            "Ketik pertanyaan setelah perintah.\nContoh: `/tanya Apa itu El Nino?`",
             parse_mode="Markdown"
         )
         return
 
     prompt = " ".join(context.args)
-
-    # Coba pakai GPT-3.5 dulu
-    try:
-        if not OPENAI_API_KEY:
-            raise ValueError("API Key OpenAI tidak ditemukan.")
-
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Ganti dari gpt-4o ke gpt-3.5-turbo
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1000,
-            temperature=0.7
-        )
-        jawaban = response.choices[0].message.content
-        await update.message.reply_text(jawaban)
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        await update.message.reply_text("❌ API Key OpenRouter tidak ditemukan di .env.")
         return
 
-    except Exception as e_openai:
-        # Fallback ke Gemini
-        try:
-            if not GEMINI_API_KEY:
-                raise ValueError("API Key Gemini tidak ditemukan.")
-            response = gemini_model.generate_content(prompt)
-            jawaban = response.text
-            await update.message.reply_text(jawaban)
-            return
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://openrouter.ai",  # Penting untuk akses gratis
+            "X-Title": "TelegramBotCuacaAI"
+        }
 
-        except Exception as e_gemini:
-            await update.message.reply_text(
-                "❌ Gagal menjawab pertanyaan.\n"
-                f"Error OpenAI: `{e_openai}`\n"
-                f"Error Gemini: `{e_gemini}`",
-                parse_mode="Markdown"
-            )
+        body = {
+            "model": "openai/gpt-3.5-turbo",  # Bisa diganti ke "anthropic/claude-3-haiku", "mistralai/mixtral-8x7b", dll.
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=body,
+            timeout=15
+        )
+
+        result = response.json()
+        if "choices" in result:
+            reply = result["choices"][0]["message"]["content"]
+        else:
+            reply = f"❌ Gagal menjawab.\nRespon: `{result}`"
+
+        await update.message.reply_text(reply)
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Gagal menjawab pertanyaan.\nError: `{e}`", parse_mode="Markdown")
+
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
