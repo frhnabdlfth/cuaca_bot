@@ -1,9 +1,8 @@
 import os
 from dotenv import load_dotenv
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from datetime import datetime
-from telegram.ext import Application
-import asyncio
 import requests
 import openai
 
@@ -13,7 +12,7 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
-# Kamus terjemahan kondisi cuaca
+# Kamus terjemahan cuaca
 TERJEMAHAN_CUACA = {
     "Sunny": "Cerah", "Clear": "Cerah", "Partly cloudy": "Sebagian berawan", "Cloudy": "Berawan",
     "Overcast": "Mendung", "Mist": "Berkabut", "Patchy rain possible": "Kemungkinan hujan ringan",
@@ -24,7 +23,6 @@ TERJEMAHAN_CUACA = {
     "Patchy light drizzle": "Gerimis ringan tersebar",
 }
 
-# Emoji sesuai kondisi
 EMOJI_CUACA = {
     "Cerah": "☀️", "Sebagian berawan": "🌤️", "Berawan": "☁️", "Mendung": "🌥️",
     "Berkabut": "🌫️", "Hujan ringan": "🌦️", "Hujan sedang": "🌧️", "Hujan lebat": "🌧️",
@@ -32,8 +30,8 @@ EMOJI_CUACA = {
 }
 
 # /start
-async def start(context: ContextTypes.DEFAULT_TYPE):
-    await context.message.reply_text(
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
         "Selamat datang! 🌦️\n"
         "Ketik:\n"
         "• /cuaca [lokasi] → Info cuaca\n"
@@ -45,9 +43,9 @@ async def start(context: ContextTypes.DEFAULT_TYPE):
     )
 
 # /cuaca
-async def cuaca(context: ContextTypes.DEFAULT_TYPE):
+async def cuaca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await context.message.reply_text("Ketik lokasi setelah perintah.\nContoh: `/cuaca Yogyakarta`", parse_mode="Markdown")
+        await update.message.reply_text("Ketik lokasi setelah perintah.\nContoh: `/cuaca Yogyakarta`", parse_mode="Markdown")
         return
 
     lokasi_input = " ".join(context.args)
@@ -95,14 +93,13 @@ async def cuaca(context: ContextTypes.DEFAULT_TYPE):
             f"🌬️ Angin: {angin} km/jam"
         )
 
-        # Tambahkan perkiraan hujan 6 jam ke depan
         perkiraan = data["forecast"]["forecastday"][0]["hour"]
         jam_sekarang = dt.hour
         perkiraan_emoji = ""
 
         for jam in perkiraan:
             jam_data = datetime.strptime(jam["time"], "%Y-%m-%d %H:%M")
-            if jam_sekarang <= jam_data.hour <= jam_sekarang + 5:
+            if jam_sekarang <= jam_data.hour <= jam_sekarang + 5 and jam_data.day == dt.day:
                 jam_str = jam_data.strftime("%H:%M")
                 kondisi_hour = jam["condition"]["text"]
                 kondisi_id = TERJEMAHAN_CUACA.get(kondisi_hour, kondisi_hour)
@@ -113,19 +110,19 @@ async def cuaca(context: ContextTypes.DEFAULT_TYPE):
             pesan += "\n\n📆 *Prakiraan Hujan 6 Jam ke Depan:*"
             pesan += perkiraan_emoji
 
-        await context.message.reply_text(pesan, parse_mode="Markdown")
+        await update.message.reply_text(pesan, parse_mode="Markdown")
 
     except Exception as e:
-        await context.message.reply_text(f"❌ Gagal mengambil data.\nError: `{e}`", parse_mode="Markdown")
+        await update.message.reply_text(f"❌ Gagal mengambil data.\nError: `{e}`", parse_mode="Markdown")
 
-# /tanya - fitur AI ChatGPT-4
-async def tanya(context: ContextTypes.DEFAULT_TYPE):
+# /tanya
+async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not openai.api_key:
-        await context.message.reply_text("❌ API Key OpenAI tidak ditemukan. Cek config Railway kamu.")
+        await update.message.reply_text("❌ API Key OpenAI tidak ditemukan. Cek config Railway kamu.")
         return
 
     if not context.args:
-        await context.message.reply_text("Ketik pertanyaan setelah perintah.\nContoh: `/tanya Apa itu awan cumulonimbus?`", parse_mode="Markdown")
+        await update.message.reply_text("Ketik pertanyaan setelah perintah.\nContoh: `/tanya Apa itu awan cumulonimbus?`", parse_mode="Markdown")
         return
 
     prompt = " ".join(context.args)
@@ -137,15 +134,13 @@ async def tanya(context: ContextTypes.DEFAULT_TYPE):
             temperature=0.7
         )
         jawaban = res.choices[0].message.content
-        await context.message.reply_text(jawaban)
-
+        await update.message.reply_text(jawaban)
     except Exception as e:
-        await context.message.reply_text(f"❌ Gagal menjawab pertanyaan.\nError: `{e}`", parse_mode="Markdown")
+        await update.message.reply_text(f"❌ Gagal menjawab pertanyaan.\nError: `{e}`", parse_mode="Markdown")
 
-# Jalankan bot
+# Start app
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("cuaca", cuaca))
     app.add_handler(CommandHandler("tanya", tanya))
