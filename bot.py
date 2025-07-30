@@ -133,12 +133,12 @@ async def tanya(update: Update, context: ContextTypes.DEFAULT_TYPE):
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://openrouter.ai",  # Penting untuk akses gratis
+            "HTTP-Referer": "https://openrouter.ai",
             "X-Title": "TelegramBotCuacaAI"
         }
 
         body = {
-            "model": "openai/gpt-3.5-turbo",  # Bisa diganti ke "anthropic/claude-3-haiku", "mistralai/mixtral-8x7b", dll.
+            "model": "openai/gpt-3.5-turbo",
             "messages": [
                 {"role": "user", "content": prompt}
             ]
